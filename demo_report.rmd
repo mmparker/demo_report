@@ -103,7 +103,8 @@ dfprintif <- function(df,
 # load data, run the regression)
 # and also to put slow code in its own chunk. You'll spend a lot of time
 # re-running chunks to tweak the results, and you don't want to run any
-# more code than you have to.
+# more code than you have to. Learn the hotkeys for running chunks
+# by clicking the "Chunks" menu at the top-right of this script window.
 
 # Most of the time, you'll be reading data from these sources:
 # - CSV files. Just type: read.csv("path/to/file.csv")
@@ -123,7 +124,7 @@ library(hflights)
 
 
 # I don't want any of this stuff showing up in the final report, so I've set
-# results = 'hide' in the chunk header.
+# results = 'hide' in this chunk's header.
 
 
 
@@ -136,7 +137,7 @@ library(hflights)
 #    factors, dates, date-times (aka POSIXct), and logical (TRUE, FALSE, NA). 
 #    To start with, you'll want all of your variables to be as close to their
 #    "true" data type as possible.
-#    Later on, you can tweak them a bit for specific purposes.
+#    Later on, you can tweak them a bit for specific purposes, like plotting.
 # 3. Out-of-bound values. Do you have dates from the 1800s or the 2300s? 
 #    Is someone in your data 108 inches tall? Plotting and tables are best ways
 #    to make surethat your values fall into the realm of plausibility.
@@ -158,7 +159,7 @@ apply(hflights, MARGIN = 2, FUN = function(x) { sum(is.na(x)) } )
 
 # Let's check some of those missing values. I'm going to subset to all of the
 # records where DepTime is NA. Since there are 2905 of those records,
-# I'm going to use head() to get just the first 10 records.
+# I'm going to use head() to print just the first 10 records.
 head(subset(hflights, is.na(DepTime)))
 
 # Looks like they were all cancelled (Cancelled = 1). Let's check.
@@ -178,7 +179,7 @@ table(subset(hflights, is.na(DepTime))$Cancelled, exclude = NULL)
 str(hflights)
 
 # These are looking good, although in my mind "Cancelled" and "Diverted"
-# should be a logical variable (aka a Boolean). Not a big deal, though.
+# should be logical variables (aka Boolean). Not a big deal, though.
 # My departure and arrival times are split across several variables, though,
 # and that's a pain to work with. Here's how to convert those variables to
 # a single date object.
@@ -202,8 +203,12 @@ hflights$DepDate <- with(hflights,
 
 # The same thing works for creating date-times, except I'll use as.POSIXct()
 # instead of as.Date() (POSIX is a set of international standards for stuff 
-# like ethis). This looks just about the same, except this time I'm including
+# like this). This looks just about the same, except this time I'm including
 # the hours and minutes.
+# All of the different crazy date and datetime formatting codes (I've used
+# Y, m, d, k, and M here) are stashed in the help file for the function
+# "strptime"; just type ?strptime into the console to see that helpfile.
+# Look up "%k" and "%M" to see how I'm formatting the times below.
 hflights$DepDateTime <- with(hflights,
     as.POSIXct(paste(DepDate, # Hey, I made it, might as well use it...
                      DepTime,
@@ -220,17 +225,20 @@ hflights[c("Year", "Month", "DayofMonth", "DepTime", "DepDate", "DepDateTime")]
 
 # It's pretty obvious that not all of the DepDateTimes worked - specifically,
 # none of the AM flights were successful. That's probably because they don't
-# have that leading zero.
+# have a leading zero on the hours - they're just "9" instead of "09".
 # There's probably a magic specification for 24-hour hours without leading
 # zeroes, but I can't remember it - so I'll check the docs.
 ?strptime # All of the date-time format codes are hiding in here
 # I can see %H as hours (00-23) - but I've got (0-23) hours.
 # I tried %k too (single digits preceded by a blank), but no luck.
-# Time for some help: http://stackoverflow.com/questions/5812493/adding-leading-zeros-using-r
-sprintf("%04s", hflights$DepTime) # No idea how this works, but it looks good
+# Time for some help, so I turn to StackOverflow - specifically:
+# http://stackoverflow.com/questions/5812493/adding-leading-zeros-using-r
+# which suggests this:
+sprintf("%04s", hflights$DepTime) 
+# Well, I have no idea why that works, but it looks good
 
 hflights$DepDateTime <- with(hflights,
-    as.POSIXct(paste(DepDate, # Hey, I made it, might as well use it...
+    as.POSIXct(paste(DepDate,
                      sprintf("%04s", DepTime),
                      sep = " "),
                format = "%Y-%m-%d %k%M"
@@ -260,6 +268,10 @@ summary(hflights$DepDateTime)
 # Plotting is always a good idea, too. I use ggplot almost exclusively.
 # It takes a little more time to learn the basics, but it's much easier
 # to produce high-quality plots than with the base graphics package.
+# ggplot(hflights tells ggplot I'll be using the hflights data.frame for this plot;
+# aes(x = DepDateTime) indicates that I want departe datetime as the x-axis
+# geom_histogram pipes that data into the classic histogram plot
+# and theme_bw() makes it a bit prettier, I think.
 ggplot(hflights, aes(x = DepDateTime)) +
     geom_histogram() +
     theme_bw()
@@ -272,8 +284,14 @@ ggplot(hflights, aes(x = DepDateTime)) +
 summary(hflights$ActualElapsedTime)
 
 # Um... is 575 minutes a plausible flight time? Sounds dreadful. I can get that
-# in hours easily by dividng that entire summary by 60.
-summary(hflights$ActualElapsedTime) / 60 # 9.6 hours. Ugh.
+# in hours easily by dividng that entire summary by 60. The output of many of
+# R's base descriptive functions - table and summary in particular - are
+# just named vectors, and you can do math right on them.
+summary(hflights$ActualElapsedTime) / 60 
+
+# 9.6 hours. Ugh. But plausible. Where did it go? I'm going to sort
+# the data.frame by elapsed time and look at the destinations for the top 10.
+head(arrange(hflights, desc(ActualElapsedTime)))
 
 
 
@@ -310,7 +328,8 @@ ggplot(hflights, aes(x = Distance, y = ActualElapsedTime)) +
     theme_bw()
 
 # What's with that crazy gap between 2000 and 3000? Well, here's the 2000 mile
-# radius around Houston: http://maps.google.com/maps/api/staticmap?size=600x500&path=fillcolor:0x00FF00|weight:1|color:0xFFFFFF|enc:axaeJv~_eQdwLiwdMneh@spbMhmcAmc~Lpj~AspwLxxxBaynLbtrCe~cLlxkDwawKxadEsehKll{EglwJttqFexdJdwfGglpIlpzGykzHr}lHezbHr{}Ha{iG|gmIiroFb`{I_dtEbbgJqtwD|kqJghzC|{yJyc|B~p`Kwk}AzieKce~@zehKot^pdiK?|ehKnt^xieKbe~@~p`Kvk}A|{yJxc|B|kqJfhzCbbgJptwDb`{I~ctE|gmIhroFr{}H`{iGr}lHdzbHlpzGxkzHdwfGflpIttqFdxdJll{EflwJxadErehKlxkDvawKbtrCd~cLxxxB`ynLpj~ArpwLhmcAlc~Lneh@rpbMdwLhwdMewLhwdMoeh@rpbMimcAlc~Lqj~ArpwLyxxB`ynLctrCd~cLmxkDvawKyadErehKml{EflwJutqFdxdJewfGflpImpzGxkzHs}lHdzbHs{}H`{iG}gmIhroFc`{I~ctEcbgJptwD}kqJfhzC}{yJxc|B_q`Kvk}AyieKbe~@}ehKnt^qdiK?{ehKot^{ieKce~@_q`Kwk}A}{yJyc|B}kqJghzCcbgJqtwDc`{I_dtE}gmIiroFs{}Ha{iGs}lHezbHmpzGykzHewfGglpIutqFexdJml{EglwJyadEsehKmxkDwawKctrCe~cLyxxBaynLqj~AspwLimcAmc~Loeh@spbMewLiwdM&sensor=true
+# radius around Houston: 
+# http://maps.google.com/maps/api/staticmap?size=600x500&path=fillcolor:0x00FF00|weight:1|color:0xFFFFFF|enc:axaeJv~_eQdwLiwdMneh@spbMhmcAmc~Lpj~AspwLxxxBaynLbtrCe~cLlxkDwawKxadEsehKll{EglwJttqFexdJdwfGglpIlpzGykzHr}lHezbHr{}Ha{iG|gmIiroFb`{I_dtEbbgJqtwD|kqJghzC|{yJyc|B~p`Kwk}AzieKce~@zehKot^pdiK?|ehKnt^xieKbe~@~p`Kvk}A|{yJxc|B|kqJfhzCbbgJptwDb`{I~ctE|gmIhroFr{}H`{iGr}lHdzbHlpzGxkzHdwfGflpIttqFdxdJll{EflwJxadErehKlxkDvawKbtrCd~cLxxxB`ynLpj~ArpwLhmcAlc~Lneh@rpbMdwLhwdMewLhwdMoeh@rpbMimcAlc~Lqj~ArpwLyxxB`ynLctrCd~cLmxkDvawKyadErehKml{EflwJutqFdxdJewfGflpImpzGxkzHs}lHdzbHs{}H`{iG}gmIhroFc`{I~ctEcbgJptwD}kqJfhzC}{yJxc|B_q`Kvk}AyieKbe~@}ehKnt^qdiK?{ehKot^{ieKce~@_q`Kwk}A}{yJyc|B}kqJghzCcbgJqtwDc`{I_dtE}gmIiroFs{}Ha{iGs}lHezbHmpzGykzHewfGglpIutqFexdJml{EglwJyadEsehKmxkDwawKctrCe~cLyxxBaynLqj~AspwLimcAmc~Loeh@spbMewLiwdM&sensor=true
 
 
 ```
@@ -320,7 +339,7 @@ ggplot(hflights, aes(x = Distance, y = ActualElapsedTime)) +
 
 
 
-```{r markdown intro}
+```{r markdown_intro}
 
 # Below, you'll see some text outside of a chunk for the first time.
 # This text is called Markdown - it's basically a shorthand way of writing
